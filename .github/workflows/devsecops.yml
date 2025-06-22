@@ -1,0 +1,198 @@
+name: DevSecOps CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Build DVWA image
+        run: docker build -t dvwa-devsecops .
+
+      - name: Save image as artifact
+        run: docker save dvwa-devsecops > dvwa-devsecops.tar
+
+      - name: Upload image
+        uses: actions/upload-artifact@v4
+        with:
+          name: dvwa-image
+          path: dvwa-devsecops.tar
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Load image from artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dvwa-image
+
+      - name: Load Docker image
+        run: docker load < dvwa-devsecops.tar
+
+      - name: Run DVWA container
+        run: docker run -d -p 8080:80 --name dvwa-test dvwa-devsecops
+
+      - name: Wait for DVWA to start
+        run: sleep 10
+
+      - name: Test DVWA with curl
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 | grep 200
+
+      - name: Stop container
+        run: docker stop dvwa-test
+
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run Trivy SCA scan (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          format: table
+          output: trivy-sca-report.txt
+
+      - name: Upload SCA report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-sca-report
+          path: trivy-sca-report.txt
+
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Pull PHPStan image
+        run: docker pull phpstan/phpstan
+
+      - name: Run PHPStan analysis
+        run: docker run --rm -v ${{ github.workspace }}:/app phpstan/phpstan analyse /app --error-format=json > phpstan-report.json || true
+
+      - name: Upload PHPStan report
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpstan-report
+          path: phpstan-report.json
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install TruffleHog
+        run: pip install trufflehog
+
+      - name: Run TruffleHog secrets scan
+        run: trufflehog git+file://. --json | tee trufflehog-report.json || true
+
+      - name: Upload TruffleHog report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trufflehog-report
+          path: trufflehog-report.json
+
+  dast:
+    runs-on: ubuntu-latest
+    needs: release
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run DVWA container
+        run: |
+          docker network create dvwa-net || true
+          docker run -d --rm --name dvwa-db --network dvwa-net -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=dvwa mariadb:10.5
+          docker run -d --rm --name dvwa-web --network dvwa-net -p 8080:80 -e MYSQL_PASSWORD=root -e MYSQL_USER=root -e MYSQL_HOST=dvwa-db vulnerables/web-dvwa
+
+      - name: Wait for DVWA to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/login.php | grep -q "DVWA Security"; then
+              echo "DVWA ready!"
+              exit 0
+            fi
+            echo "Waiting for DVWA..."
+            sleep 5
+          done
+          exit 1
+
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: 'http://localhost:8080'
+          format: 'json'
+          output: 'zap-report.json'
+
+      - name: Upload DAST report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-report.json
+
+      - name: Stop DVWA containers
+        run: docker stop dvwa-web dvwa-db
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t myapp:latest .
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@v0.4.0
+        with:
+          image-ref: myapp:latest
+          severity: HIGH,CRITICAL
+          format: json
+          output: trivy-report.json
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+
+      - name: Check for vulnerabilities and fail if found
+        run: |
+          if grep -q '"Severity": "HIGH"' trivy-report.json || grep -q '"Severity": "CRITICAL"' trivy-report.json; then
+            echo "High or Critical vulnerabilities found!"
+            exit 1
+          fi
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker image
+        run: |
+          docker tag DVWA_MB:latest delti45/DVWA_MB:latest
+          docker push delti45/DVWA_MB:latest
+
