@@ -30,20 +30,31 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Run Trivy SCA scan (filesystem)
-        uses: aquasecurity/trivy-action@master
+      - name: Set up Java
+        uses: actions/setup-java@v3
         with:
-          scan-type: fs
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
-          format: table
-          output: trivy-sca-report.txt
+          java-version: '17'
+          distribution: 'temurin'
 
-      - name: Upload SCA report
+      - name: Download OWASP Dependency-Check
+        run: |
+          curl -L -o dependency-check.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
+          unzip dependency-check.zip -d dependency-check
+
+      - name: Run Dependency-Check
+        run: |
+          ./dependency-check/dependency-check/bin/dependency-check.sh \
+            --project "DVWA-DevSecOps" \
+            --scan . \
+            --format JSON \
+            --out dependency-check-report \
+            --failOnCVSS 7
+
+      - name: Upload Dependency-Check report
         uses: actions/upload-artifact@v4
         with:
-          name: trivy-sca-report
-          path: trivy-sca-report.txt
+          name: dependency-check-report
+          path: dependency-check-report/dependency-check-report.json
 
   sast:
     runs-on: ubuntu-latest
