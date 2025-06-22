@@ -85,17 +85,28 @@ jobs:
 
   dast:
     runs-on: ubuntu-latest
-    needs: release
+    needs: build
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Run DVWA container
-        run: |
-          docker network create dvwa-net || true
-          docker run -d --rm --name dvwa-db --network dvwa-net -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=dvwa mariadb:10.5
-          docker run -d --rm --name dvwa-web --network dvwa-net -p 4280:80 -e MYSQL_PASSWORD=root -e MYSQL_USER=root -e MYSQL_HOST=dvwa-db vulnerables/web-dvwa
+      - name: Download DVWA image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dvwa-image
+
+      - name: Load Docker image
+        run: docker load < dvwa-devsecops.tar
+
+      - name: Create docker network
+        run: docker network create dvwa-net || true
+
+      - name: Run MariaDB container
+        run: docker run -d --rm --name dvwa-db --network dvwa-net -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=dvwa mariadb:10.5
+
+      - name: Run DVWA web container
+        run: docker run -d --rm --name dvwa-web --network dvwa-net -p 4280:80 -e MYSQL_PASSWORD=root -e MYSQL_USER=root -e MYSQL_HOST=dvwa-db dvwa-devsecops
 
       - name: Wait for DVWA to be ready
         run: |
@@ -123,7 +134,7 @@ jobs:
           path: zap-report.json
 
       - name: Stop DVWA containers
-        run: docker stop dvwa-web dvwa-db
+        run: docker stop dvwa-web dvwa-db || true
 
   release:
     runs-on: ubuntu-latest
