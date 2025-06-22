@@ -50,7 +50,7 @@ jobs:
         with:
           name: snyk-report
           path: snyk-report.json
-          
+
   sast:
     runs-on: ubuntu-latest
     steps:
@@ -131,16 +131,6 @@ jobs:
           target: "http://localhost:4280"
           cmd_options: "-a"
           issue_title: "[ZAP SCAN] ${{ github.sha }}"
-
-
-      - name: Upload ZAP DAST reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-report
-          path: |
-            report_json.json
-            report_html.html
-            report_md.md
 
       - name: Stop DVWA containers
         run: docker compose down
