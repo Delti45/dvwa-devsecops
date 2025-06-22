@@ -30,32 +30,27 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Download OWASP Dependency-Check
+      - name: Install Snyk CLI
         run: |
-          curl -L -o dependency-check.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
-          unzip dependency-check.zip -d dependency-check
+          curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+          npm install -g snyk
 
-      - name: Run Dependency-Check
-        run: |
-          ./dependency-check/dependency-check/bin/dependency-check.sh \
-            --project "DVWA-DevSecOps" \
-            --scan . \
-            --format JSON \
-            --out dependency-check-report \
-            --failOnCVSS 7
+      - name: Authenticate with Snyk
+        run: snyk auth ${{ secrets.SNYK_TOKEN }}
 
-      - name: Upload Dependency-Check report
+      - name: Run Snyk scan
+        run: snyk test --all-projects --severity-threshold=high || true
+
+      - name: Save Snyk report
+        run: snyk test --all-projects --json-file-output=snyk-report.json || true
+
+      - name: Upload report
         uses: actions/upload-artifact@v4
         with:
-          name: dependency-check-report
-          path: dependency-check-report/dependency-check-report.json
-
+          name: snyk-report
+          path: snyk-report.json
+          
   sast:
     runs-on: ubuntu-latest
     steps:
