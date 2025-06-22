@@ -55,7 +55,7 @@ jobs:
         run: docker pull phpstan/phpstan
 
       - name: Run PHPStan analysis
-        run: docker run --rm -v ${{ github.workspace }}:/app phpstan/phpstan analyse /app --error-format=json > phpstan-report.json || true
+        run: docker run --rm -v ${{ github.workspace }}:/app ghcr.io/phpstan/phpstan analyse /app --error-format=json > phpstan-report.json || true
 
       - name: Upload PHPStan report
         uses: actions/upload-artifact@v4
@@ -75,7 +75,7 @@ jobs:
         run: pip install trufflehog
 
       - name: Run TruffleHog secrets scan
-        run: trufflehog git+file://. --json | tee trufflehog-report.json || true
+        run: trufflehog . --json | tee trufflehog-report.json || true
 
       - name: Upload TruffleHog report
         uses: actions/upload-artifact@v4
@@ -99,14 +99,8 @@ jobs:
       - name: Load Docker image
         run: docker load < dvwa-devsecops.tar
 
-      - name: Create docker network
-        run: docker network create dvwa-net || true
-
-      - name: Run MariaDB container
-        run: docker run -d --rm --name dvwa-db --network dvwa-net -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=dvwa mariadb:10.5
-
-      - name: Run DVWA web container
-        run: docker run -d --rm --name dvwa-web --network dvwa-net -p 4280:80 -e MYSQL_PASSWORD=root -e MYSQL_USER=root -e MYSQL_HOST=dvwa-db dvwa-devsecops
+      - name: Start DVWA with Docker Compose
+        run: docker compose up -d
 
       - name: Wait for DVWA to be ready
         run: |
@@ -118,6 +112,8 @@ jobs:
             echo "Waiting for DVWA..."
             sleep 5
           done
+          echo "DVWA failed to start in time"
+          docker compose logs
           exit 1
 
       - name: Run OWASP ZAP Baseline Scan
@@ -134,7 +130,7 @@ jobs:
           path: zap-report.json
 
       - name: Stop DVWA containers
-        run: docker stop dvwa-web dvwa-db || true
+        run: docker compose down
 
   release:
     runs-on: ubuntu-latest
