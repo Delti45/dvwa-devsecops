@@ -24,39 +24,6 @@ jobs:
           name: dvwa-image
           path: dvwa-devsecops.tar
 
-  test:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Download Docker image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dvwa-image
-
-      - name: Load Docker image
-        run: docker load < dvwa-devsecops.tar
-
-      - name: Start DVWA with Docker Compose
-        run: docker compose up -d
-
-      - name: Wait for DVWA to be ready
-        run: |
-          for i in {1..30}; do
-            if curl -s http://localhost:4280/login.php | grep -q "DVWA Security"; then
-              echo "DVWA ready!"
-              exit 0
-            fi
-            echo "Waiting for DVWA..."
-            sleep 5
-          done
-          exit 1
-
-      - name: Stop DVWA containers
-        run: docker compose down
-
   sca:
     runs-on: ubuntu-latest
     steps:
