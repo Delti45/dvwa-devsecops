@@ -72,22 +72,25 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo with full history
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install TruffleHog
-        run: pip install trufflehog
+      - name: Install GitLeaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
+          chmod +x gitleaks
+          sudo mv gitleaks /usr/local/bin
 
-      - name: Run TruffleHog secrets scan
-        run: trufflehog . --json | tee trufflehog-report.json || true
+      - name: Run GitLeaks scan
+        run: gitleaks detect --source=. --report-format=json --report-path=gitleaks-report.json || true
 
-      - name: Upload TruffleHog report
+      - name: Upload GitLeaks report
         uses: actions/upload-artifact@v4
         with:
-          name: trufflehog-report
-          path: trufflehog-report.json
+          name: gitleaks-report
+          path: gitleaks-report.json
 
   dast:
     runs-on: ubuntu-latest
@@ -131,6 +134,7 @@ jobs:
           target: "http://localhost:4280"
           cmd_options: "-a"
           issue_title: "[ZAP SCAN] ${{ github.sha }}"
+          artifact_name: zap-report
 
       - name: Stop DVWA containers
         run: docker compose down
