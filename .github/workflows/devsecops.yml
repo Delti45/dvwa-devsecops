@@ -115,9 +115,6 @@ jobs:
           echo "DVWA failed to start in time"
           docker compose logs
           exit 1
-  
-      - name: Login to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u github-actions --password-stdin
 
       - name: Run OWASP ZAP Baseline Scan
         if: always()
