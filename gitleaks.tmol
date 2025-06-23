@@ -1,0 +1,9 @@
+[[rules]]
+description = "Ignore test user token"
+regex = '''026d0caed93471b507ed460ebddbd096'''
+tags = ["ignore"]
+
+[[rules]]
+description = "Ignore recaptcha sitekey"
+regex = '''6LelWk4UAAAAAGaBJWFusnIlAVoaCK8DWnRBDE4g'''
+tags = ["ignore"]
