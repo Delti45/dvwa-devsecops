@@ -1,9 +1,11 @@
 [[rules]]
-description = "Ignore test user token"
-regex = '''026d0caed93471b507ed460ebddbd096'''
+id = "ignore-recaptcha-sitekey"
+description = "Ignore Google reCAPTCHA sitekey"
+regex = '''6LelWk4UAAAAAGaBJWFusnIlAVoaCK8DWnRBDE4g'''
 tags = ["ignore"]
 
 [[rules]]
-description = "Ignore recaptcha sitekey"
-regex = '''6LelWk4UAAAAAGaBJWFusnIlAVoaCK8DWnRBDE4g'''
+id = "ignore-user-token"
+description = "Ignore user-token example"
+regex = '''026d0caed93471b507ed460ebddbd096'''
 tags = ["ignore"]
