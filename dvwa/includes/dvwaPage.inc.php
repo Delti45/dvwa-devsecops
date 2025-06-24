@@ -1,5 +1,7 @@
 <?php
 
+header("X-Frame-Options: DENY");
+
 if( !defined( 'DVWA_WEB_PAGE_TO_ROOT' ) ) {
 	die( 'DVWA System error- WEB_PAGE_TO_ROOT undefined' );
 	exit;
