@@ -21,5 +21,5 @@ COPY --chown=www-data:www-data . .
 COPY --chown=www-data:www-data config/config.inc.php.dist config/config.inc.php
 
 # This is configuring the stuff for the API
-RUN cd /var/www/html/vulnerabilities/api \
- && composer install \
+RUN cd /var/www/html/vulnerabilities/api && composer install 
+RUN rm -f composer.lock README.* CHANGELOG* .gitignore
